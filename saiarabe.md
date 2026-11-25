@@ -1,11 +1,100 @@
-Aymeric Le Contellec
-16:21
-1. ObjectifDiagnostiquer et résoudre l'arrêt de remontée d'inventaire / d'informations de l'agent GLPI vers le serveur, en distinguant la chaîne agent → serveur GLPI de la chaîne client → serveur Web (HTTP).   2. SymptômesAbsence ou retard anormal de mise à jour des informations d'inventaire d'une machine Ubuntu dans GLPI.Le service glpi-agent est arrêté (inactive / dead) ou ne communique plus avec le serveur GLPI.Le service Web (nginx ou apache2) hébergeant GLPI peut être fonctionnel ou inaccessible selon le périmètre de la panne.3. VérificationsAvant toute modification, distinguer la chaîne de remontée de l'agent et la disponibilité HTTP du serveur Web :État des services (glpi-agent et serveur Web) :Bashsystemctl status glpi-agent nginx apache2
-Vérification attendue : glpi-agent doit apparaître active (running) ; le service Web utilisé (nginx ou apache2) doit également être active (running).Consultation des journaux de l'agent :Bashjournalctl -u glpi-agent -n 50
-Vérification attendue : repérer d'éventuelles erreurs d'arrêt, de timeout réseau ou d'échec d'envoi vers l'URL du serveur GLPI.Test de connexion HTTP vers le serveur GLPI :Bashcurl -I http://192.168.56.40
-Vérification attendue : réception d'une réponse HTTP valide (HTTP/1.1 200 OK, 301 ou 302) indiquant que le serveur Web répond.Vérification des ports en écoute :Bashss -lntp
-Vérification attendue : présence des ports d'écoute attendus (ex. 80/443 côté serveur Web si pertinent) associés au processus correspondant.4. Méthode de résolution du problèmeDans le cas constaté (service glpi-agent à l'arrêt) :Démarrer le service glpi-agent :Bashsudo systemctl start glpi-agent
-Vérification attendue : la commande s'exécute sans erreur et systemctl status glpi-agent affiche l'état active (running).Vérifier que le service est activé au démarrage (si nécessaire) :Bashsudo systemctl enable glpi-agent
-Vérification attendue : confirmation de la création/présence du lien systemd pour le démarrage automatique.Escalade (si le démarrage ne suffit pas) : si glpi-agent refuse de démarrer, si les logs (journalctl -u glpi-agent -n 50) montrent des erreurs persistantes de configuration/authentification/réseau, ou si curl -I [http://192.168.56.40](http://192.168.56.40) échoue côté serveur Web, escalader au niveau supérieur (N2 / administration système ou réseau) avec les sorties de commandes.5. Test de validationContrôler à nouveau l'état du service :Bashsystemctl status glpi-agent
-Résultat attendu : service active (running) sans redémarrage en boucle.Consulter les derniers logs :Bashjournalctl -u glpi-agent -n 20
-Résultat attendu : absence de nouvelles erreurs critiques et activité normale de l'agent.Vérifier la remontée côté interface GLPI : ouvrir la fiche de l'équipement concerné et contrôler que la date de dernière inventaire / mise à jour s'actualise bien.6. Clôture du ticketCause identifiée : service glpi-agent arrêté sur la machine Ubuntu du laboratoire.Action réalisée : redémarrage du service (systemctl start glpi-agent) et vérification de l'état (systemctl status) ainsi que de la remontée dans GLPI.Statut : résolu — la remontée d'informations est de nouveau opérationnelle.
+# KB - Agent GLPI arrêté : la remontée d'inventaire ne se fait plus
+
+**Niveau :** N1
+**Catégorie :** Inventaire / Agent GLPI
+**Environnement :** serveur GLPI 192.168.56.40, machine Ubuntu du laboratoire
+
+## 1. Objectif
+
+Diagnostiquer et résoudre l'arrêt de la remontée d'inventaire de l'agent GLPI vers le serveur, en distinguant bien deux chaines techniques différentes :
+- la chaine **agent → serveur GLPI** (l'inventaire)
+- la chaine **client → serveur Web (HTTP)** (l'accès à l'interface)
+
+## 2. Symptômes
+
+- Absence ou retard anormal de mise à jour des informations d'inventaire d'une machine Ubuntu dans GLPI.
+- Le service `glpi-agent` est arrêté (`inactive` / `dead`) ou ne communique plus avec le serveur GLPI.
+- Le service Web (nginx ou apache2) qui héberge GLPI peut être fonctionnel ou non, selon le périmètre de la panne.
+
+## 3. Vérifications (diagnostic)
+
+Avant toute modification, on distingue la chaine de remontée de l'agent et la disponibilité HTTP du serveur Web.
+
+### État des services
+
+```bash
+systemctl status glpi-agent nginx apache2
+```
+Attendu : `glpi-agent` doit être `active (running)`, et le service Web utilisé (nginx ou apache2) doit lui aussi être `active (running)`.
+
+### Journaux de l'agent
+
+```bash
+journalctl -u glpi-agent -n 50
+```
+Attendu : repérer d'éventuelles erreurs d'arrêt, de timeout réseau ou d'échec d'envoi vers l'URL du serveur GLPI.
+
+### Test de connexion HTTP vers le serveur GLPI
+
+```bash
+curl -I http://192.168.56.40
+```
+Attendu : une réponse HTTP valide (`200`, `301` ou `302`), qui prouve que le serveur Web répond.
+
+### Ports en écoute
+
+```bash
+ss -lntp
+```
+Attendu : la présence des ports d'écoute attendus (80 / 443 côté serveur Web si pertinent) associés au bon processus.
+
+## 4. Méthode de résolution
+
+Dans le cas constaté (service `glpi-agent` à l'arrêt) :
+
+### Démarrer le service
+
+```bash
+sudo systemctl start glpi-agent
+```
+Attendu : la commande s'exécute sans erreur, et `systemctl status glpi-agent` affiche `active (running)`.
+
+### Activer le démarrage automatique (si nécessaire)
+
+```bash
+sudo systemctl enable glpi-agent
+```
+Attendu : confirmation du lien systemd pour le démarrage au boot.
+
+## 5. Critères d'escalade N2
+
+Escalader au niveau supérieur (N2 / administration système ou réseau), en joignant les sorties de commandes, si :
+- `glpi-agent` refuse de démarrer malgré le `start`
+- les journaux (`journalctl -u glpi-agent -n 50`) montrent des erreurs persistantes de configuration, d'authentification ou de réseau
+- le `curl -I http://192.168.56.40` échoue (le problème est côté serveur Web ou réseau, pas l'agent)
+
+## 6. Test de validation
+
+### État du service
+
+```bash
+systemctl status glpi-agent
+```
+Attendu : `active (running)`, sans redémarrage en boucle.
+
+### Derniers journaux
+
+```bash
+journalctl -u glpi-agent -n 20
+```
+Attendu : plus de nouvelles erreurs critiques, activité normale de l'agent.
+
+### Côté interface GLPI
+
+Ouvrir la fiche de l'équipement concerné et vérifier que la date de dernier inventaire / dernière mise à jour s'actualise bien.
+
+## 7. Clôture du ticket
+
+- **Cause identifiée :** service `glpi-agent` arrêté sur la machine Ubuntu du laboratoire.
+- **Action réalisée :** redémarrage du service (`systemctl start glpi-agent`), vérification de l'état (`systemctl status`) et de la remontée dans GLPI.
+- **Statut :** résolu, la remontée d'informations est de nouveau opérationnelle.
