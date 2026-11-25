@@ -1,7 +1,3 @@
-dmr-fxbm-zwf
-15:06
-yabdelshafy@lenovo.com
-
 Aymeric Le Contellec
 16:21
 1. ObjectifDiagnostiquer et résoudre l'arrêt de remontée d'inventaire / d'informations de l'agent GLPI vers le serveur, en distinguant la chaîne agent → serveur GLPI de la chaîne client → serveur Web (HTTP).   2. SymptômesAbsence ou retard anormal de mise à jour des informations d'inventaire d'une machine Ubuntu dans GLPI.Le service glpi-agent est arrêté (inactive / dead) ou ne communique plus avec le serveur GLPI.Le service Web (nginx ou apache2) hébergeant GLPI peut être fonctionnel ou inaccessible selon le périmètre de la panne.3. VérificationsAvant toute modification, distinguer la chaîne de remontée de l'agent et la disponibilité HTTP du serveur Web :État des services (glpi-agent et serveur Web) :Bashsystemctl status glpi-agent nginx apache2
